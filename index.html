@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Galaga Móvil - Defensa Galáctica</title>
+    <style>
+        * {
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+
+        body {
+            background: radial-gradient(circle at 20% 30%, #010514, #000000);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Courier New', 'VT323', monospace;
+            margin: 0;
+            padding: 12px;
+        }
+
+        .game-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            max-width: 900px;
+            background: rgba(0, 0, 0, 0.55);
+            border-radius: 48px;
+            padding: 16px 12px 20px;
+            backdrop-filter: blur(2px);
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.3);
+            border: 1px solid cyan;
+        }
+
+        /* Canvas responsivo - mantiene proporción 800:550 */
+        .canvas-container {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+        }
+
+        canvas {
+            width: 100%;
+            height: auto;
+            background-color: #010018;
+            border-radius: 16px;
+            box-shadow: 0 0 0 2px cyan, 0 8px 25px black;
+            cursor: none;
+            touch-action: none; /* mejorar para touch */
+        }
+
+        /* Mantener la relación de aspecto 800/550 */
+        canvas {
+            aspect-ratio: 800 / 550;
+            max-width: 800px;
+        }
+
+        .info-panel {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #031020cc;
+            padding: 8px 18px;
+            border-radius: 60px;
+            backdrop-filter: blur(4px);
+            border: 1px solid #0ff8;
+            color: #8efff0;
+            font-weight: bold;
+            font-size: 1.2rem;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .score, .lives {
+            display: flex;
+            align-items: baseline;
+            gap: 12px;
+            background: #00000066;
+            padding: 4px 14px;
+            border-radius: 32px;
+        }
+
+        .score span:first-child, .lives span:first-child {
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+        }
+
+        #resetBtn {
+            background: #0a4c5e;
+            border: none;
+            font-family: monospace;
+            font-weight: bold;
+            font-size: 1rem;
+            padding: 5px 18px;
+            border-radius: 40px;
+            color: white;
+            box-shadow: 0 0 6px cyan;
+            cursor: pointer;
+            transition: 0.1s;
+        }
+
+        /* Panel de botones táctiles (solo visible en móvil/táctil por defecto) */
+        .touch-controls {
+            display: none;
+            gap: 20px;
+            justify-content: center;
+            align-items: center;
+            margin-top: 10px;
+            width: 100%;
+            flex-wrap: wrap;
+        }
+
+        .touch-btn {
+            background: #111c2ae0;
+            backdrop-filter: blur(8px);
+            border: 2px solid #0ff;
+            color: #0ff;
+            font-size: 2rem;
+            font-weight: bold;
+            padding: 12px 24px;
+            border-radius: 60px;
+            text-align: center;
+            cursor: pointer;
+            transition: 0.05s linear;
+            touch-action: manipulation;
+            box-shadow: 0 0 12px cyan;
+            font-family: monospace;
+            min-width: 80px;
+        }
+
+        .touch-btn:active {
+            background: #0ff;
+            color: #010018;
+            transform: scale(0.94);
+            box-shadow: 0 0 20px white;
+        }
+
+        .fire-btn {
+            background: #aa2e1ee0;
+            border-color: #ff7744;
+            color: #ffaa77;
+            box-shadow: 0 0 10px #ff5522;
+        }
+
+        .desktop-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.7rem;
+            background: #022030;
+            padding: 5px 12px;
+            border-radius: 40px;
+        }
+
+        .desktop-toggle label {
+            cursor: pointer;
+        }
+
+        @media (max-width: 700px) {
+            .touch-btn { padding: 8px 18px; font-size: 1.6rem; min-width: 70px; }
+            .info-panel { font-size: 1rem; }
+        }
+
+        @media (max-width: 500px) {
+            .touch-btn { padding: 7px 14px; font-size: 1.3rem; min-width: 60px; }
+        }
+    </style>
+</head>
+<body>
+<div class="game-wrapper">
+    <div class="canvas-container">
+        <canvas id="gameCanvas" width="800" height="550"></canvas>
+    </div>
+    <div class="info-panel">
+        <div class="score">🔫 SCORE: <span id="scoreValue">0</span></div>
+        <div class="lives">🛸 LIVES: <span id="livesValue">3</span></div>
+        <button id="resetBtn">🔄 REINICIAR</button>
+    </div>
+
+    <!-- Botones táctiles (se muestran automáticamente en móviles) -->
+    <div id="touchControls" class="touch-controls">
+        <div class="touch-btn" id="leftBtn">◀</div>
+        <div class="touch-btn" id="rightBtn">▶</div>
+        <div class="touch-btn fire-btn" id="fireBtn">🔥 DISPARO</div>
+    </div>
+    <div class="desktop-toggle">
+        <input type="checkbox" id="forceTouchBtn"> <label for="forceTouchBtn">📱 Mostrar botones táctiles (para escritorio)</label>
+    </div>
+    <div style="font-size: 0.65rem; color: #2ffff0; text-align: center;">
+        ← → mover | DISPARO táctil o click
+    </div>
+</div>
+
+<script>
+    (function(){
+        // ---------- CONFIGURACIÓN ----------
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const W = 800, H = 550;
+        canvas.width = W;
+        canvas.height = H;
+
+        // ----- Variables del juego -----
+        let score = 0;
+        let lives = 3;
+        let gameOver = false;
+
+        // Nave
+        const SHIP_WIDTH = 36;
+        const SHIP_HEIGHT = 28;
+        let shipX = W/2 - SHIP_WIDTH/2;
+        const shipY = H - 60;
+        let shipSpeed = 6;
+        let canShoot = true;
+        let shootCooldown = 0;
+        const COOLDOWN_MAX = 12;
+
+        // Balas jugador
+        let bullets = [];
+        const BULLET_W = 4;
+        const BULLET_H = 10;
+        const BULLET_SPEED = -7;
+
+        // Enemigos
+        let enemies = [];
+        const ENEMY_W = 38;
+        const ENEMY_H = 32;
+        let enemyDirection = 1;
+        let enemyBulletCooldown = 0;
+        const ENEMY_SHOOT_DELAY_FRAMES = 45;
+
+        // Balas enemigas
+        let enemyBullets = [];
+        const ENEMY_BULLET_W = 5;
+        const ENEMY_BULLET_H = 10;
+        const ENEMY_BULLET_SPEED = 4.5;
+
+        let explosions = [];
+
+        // ----- Controles táctiles y teclado -----
+        let leftPressed = false;
+        let rightPressed = false;
+
+        // flags para movimiento continuo (touch)
+        let touchLeftActive = false;
+        let touchRightActive = false;
+
+        // ----- funciones auxiliares -----
+        function rectCollide(r1, r2) {
+            return !(r2.x > r1.x + r1.w ||
+                r2.x + r2.w < r1.x ||
+                r2.y > r1.y + r1.h ||
+                r2.y + r2.h < r1.y);
+        }
+
+        function addExplosion(x, y) {
+            explosions.push({ x: x, y: y, life: 8 });
+        }
+
+        function initEnemies() {
+            const enemiesArray = [];
+            const rows = 2, cols = 4;
+            const startX = 120;
+            const startY = 70;
+            const spacingX = 95;
+            const spacingY = 70;
+            for(let row = 0; row < rows; row++) {
+                for(let col = 0; col < cols; col++) {
+                    enemiesArray.push({
+                        x: startX + col * spacingX,
+                        y: startY + row * spacingY,
+                        w: ENEMY_W,
+                        h: ENEMY_H,
+                        alive: true,
+                        type: row === 0 ? 'fly' : 'beetle'
+                    });
+                }
+            }
+            return enemiesArray;
+        }
+
+        function resetGame() {
+            gameOver = false;
+            score = 0;
+            lives = 3;
+            bullets = [];
+            enemyBullets = [];
+            explosions = [];
+            shipX = W/2 - SHIP_WIDTH/2;
+            canShoot = true;
+            shootCooldown = 0;
+            enemyBulletCooldown = 10;
+            enemies = initEnemies();
+            enemyDirection = 1;
+            updateUI();
+        }
+
+        function updateUI() {
+            document.getElementById('scoreValue').innerText = score;
+            document.getElementById('livesValue').innerText = lives;
+        }
+
+        function shootFromShip() {
+            if(gameOver) return false;
+            if(!canShoot) return false;
+            bullets.push({
+                x: shipX + SHIP_WIDTH/2 - BULLET_W/2,
+                y: shipY - 8,
+                w: BULLET_W,
+                h: BULLET_H
+            });
+            canShoot = false;
+            shootCooldown = COOLDOWN_MAX;
+            return true;
+        }
+
+        // ----- Lógica del juego (casi idéntica al original, con manejo de límites de nave)-----
+        function updateGame() {
+            if(gameOver) return;
+
+            // cooldown disparo
+            if(shootCooldown > 0) {
+                shootCooldown--;
+                if(shootCooldown === 0) canShoot = true;
+            }
+
+            // movimiento nave (teclado + táctil)
+            if(leftPressed || touchLeftActive) shipX -= shipSpeed;
+            if(rightPressed || touchRightActive) shipX += shipSpeed;
+            if(shipX < 5) shipX = 5;
+            if(shipX + SHIP_WIDTH > W - 5) shipX = W - SHIP_WIDTH - 5;
+
+            // actualizar balas jugador
+            for(let i=0; i<bullets.length; i++) {
+                bullets[i].y += BULLET_SPEED;
+                if(bullets[i].y + bullets[i].h < 0 || bullets[i].y > H) {
+                    bullets.splice(i,1);
+                    i--;
+                    continue;
+                }
+                let hit = false;
+                for(let j=0; j<enemies.length; j++) {
+                    const e = enemies[j];
+                    if(!e.alive) continue;
+                    if(rectCollide({x: bullets[i].x, y: bullets[i].y, w: BULLET_W, h: BULLET_H},
+                                   {x: e.x, y: e.y, w: e.w, h: e.h})) {
+                        e.alive = false;
+                        hit = true;
+                        score += 10;
+                        updateUI();
+                        addExplosion(e.x + e.w/2, e.y + e.h/2);
+                        break;
+                    }
+                }
+                if(hit) {
+                    bullets.splice(i,1);
+                    i--;
+                }
+            }
+
+            // comprobar si todos los enemigos están muertos
+            let allDead = true;
+            let leftMost = W, rightMost = 0;
+            for(let e of enemies) {
+                if(e.alive) {
+                    allDead = false;
+                    if(e.x < leftMost) leftMost = e.x;
+                    if(e.x + e.w > rightMost) rightMost = e.x + e.w;
+                }
+            }
+
+            if(allDead && enemies.length > 0) {
+                gameOver = true;
+                return;
+            }
+
+            // movimiento enemigos (formación)
+            if(!allDead) {
+                let shiftX = 2.2 * enemyDirection;
+                let shiftY = 0;
+                if((enemyDirection === 1 && rightMost + shiftX >= W - 20) || (enemyDirection === -1 && leftMost + shiftX <= 20)) {
+                    enemyDirection *= -1;
+                    shiftY = 18;
+                }
+                for(let e of enemies) {
+                    if(e.alive) {
+                        e.x += shiftX;
+                        e.y += shiftY;
+                        if(e.y + e.h > H - 100) e.y = H - 110;
+                        if(e.y < 30) e.y = 30;
+                    }
+                }
+            }
+
+            // disparo enemigo
+            if(enemyBulletCooldown <= 0 && !allDead && !gameOver) {
+                let aliveEnemies = enemies.filter(e => e.alive);
+                if(aliveEnemies.length > 0) {
+                    let shooter = aliveEnemies[Math.floor(Math.random() * aliveEnemies.length)];
+                    enemyBullets.push({
+                        x: shooter.x + shooter.w/2 - ENEMY_BULLET_W/2,
+                        y: shooter.y + shooter.h,
+                        w: ENEMY_BULLET_W,
+                        h: ENEMY_BULLET_H
+                    });
+                }
+                enemyBulletCooldown = ENEMY_SHOOT_DELAY_FRAMES;
+            } else {
+                enemyBulletCooldown--;
+            }
+
+            // balas enemigas vs nave
+            for(let i=0; i<enemyBullets.length; i++) {
+                enemyBullets[i].y += ENEMY_BULLET_SPEED;
+                if(enemyBullets[i].y > H + 50 || enemyBullets[i].y + ENEMY_BULLET_H < 0) {
+                    enemyBullets.splice(i,1);
+                    i--;
+                    continue;
+                }
+                const shipRect = { x: shipX, y: shipY, w: SHIP_WIDTH, h: SHIP_HEIGHT };
+                const ebRect = { x: enemyBullets[i].x, y: enemyBullets[i].y, w: ENEMY_BULLET_W, h: ENEMY_BULLET_H };
+                if(rectCollide(shipRect, ebRect)) {
+                    lives--;
+                    updateUI();
+                    addExplosion(shipX + SHIP_WIDTH/2, shipY + SHIP_HEIGHT/2);
+                    enemyBullets.splice(i,1);
+                    if(lives <= 0) {
+                        gameOver = true;
+                        return;
+                    }
+                    i--;
+                }
+            }
+
+            // colisión directa nave-enemigo
+            const shipCollRect = { x: shipX, y: shipY, w: SHIP_WIDTH, h: SHIP_HEIGHT };
+            for(let i=0; i<enemies.length; i++) {
+                const e = enemies[i];
+                if(!e.alive) continue;
+                if(rectCollide(shipCollRect, {x: e.x, y: e.y, w: e.w, h: e.h})) {
+                    lives--;
+                    updateUI();
+                    addExplosion(shipX + SHIP_WIDTH/2, shipY + SHIP_HEIGHT/2);
+                    e.alive = false;  // el enemigo también muere
+                    if(lives <= 0) {
+                        gameOver = true;
+                        return;
+                    }
+                    break;
+                }
+            }
+            if(gameOver) return;
+        }
+
+        // ---------- DIBUJO (igual que original, adaptado) ----------
+        function draw() {
+            ctx.clearRect(0, 0, W, H);
+            // fondo estrellas
+            ctx.fillStyle = "#010018";
+            ctx.fillRect(0, 0, W, H);
+            for(let i=0; i<180; i++) {
+                if(i%2 === 0) continue;
+                ctx.fillStyle = `rgba(255,240,200,${Math.sin(Date.now()*0.002+i)*0.3+0.4})`;
+                ctx.fillRect( (i*131)%W, (i*57)%H, 2, 2);
+            }
+            // Nave
+            ctx.save();
+            ctx.fillStyle = "#3cc7ff";
+            ctx.beginPath();
+            const sx = shipX, sy = shipY;
+            ctx.moveTo(sx + SHIP_WIDTH/2, sy);
+            ctx.lineTo(sx + SHIP_WIDTH-8, sy + SHIP_HEIGHT-6);
+            ctx.lineTo(sx + SHIP_WIDTH-12, sy + SHIP_HEIGHT-2);
+            ctx.lineTo(sx + SHIP_WIDTH/2, sy + SHIP_HEIGHT-4);
+            ctx.lineTo(sx + 12, sy + SHIP_HEIGHT-2);
+            ctx.lineTo(sx + 8, sy + SHIP_HEIGHT-6);
+            ctx.fill();
+            ctx.fillStyle = "#7ff5ff";
+            ctx.fillRect(sx + SHIP_WIDTH/2-5, sy-4, 10, 8);
+            ctx.fillStyle = "#22aaff";
+            ctx.fillRect(sx+10, sy+SHIP_HEIGHT-10, 6, 8);
+            ctx.fillRect(sx+SHIP_WIDTH-16, sy+SHIP_HEIGHT-10, 6, 8);
+            ctx.fillStyle = "#f0f0ff";
+            ctx.beginPath();
+            ctx.arc(sx+SHIP_WIDTH/2, sy+SHIP_HEIGHT-12, 5, 0, Math.PI*2);
+            ctx.fill();
+            ctx.restore();
+
+            // Enemigos
+            for(let e of enemies) {
+                if(!e.alive) continue;
+                ctx.save();
+                ctx.shadowBlur = 2;
+                ctx.shadowColor = "#f0f";
+                if(e.type === 'fly') {
+                    ctx.fillStyle = "#cb5eff";
+                } else {
+                    ctx.fillStyle = "#3eff9e";
+                }
+                ctx.beginPath();
+                ctx.ellipse(e.x + e.w/2, e.y + e.h/2-2, e.w/2.2, e.h/2.5, 0, 0, Math.PI*2);
+                ctx.fill();
+                ctx.fillStyle = "#000";
+                ctx.beginPath();
+                ctx.arc(e.x + e.w*0.35, e.y + e.h*0.4, 4, 0, Math.PI*2);
+                ctx.arc(e.x + e.w*0.65, e.y + e.h*0.4, 4, 0, Math.PI*2);
+                ctx.fill();
+                ctx.fillStyle = "#fff9c0";
+                ctx.beginPath();
+                ctx.ellipse(e.x + e.w/2, e.y + e.h*0.7, 6, 3, 0, 0, Math.PI*2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(e.x+12, e.y-3);
+                ctx.lineTo(e.x+18, e.y-12);
+                ctx.lineTo(e.x+24, e.y-3);
+                ctx.fillStyle = "#ff6699";
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // balas jugador
+            for(let b of bullets) {
+                ctx.fillStyle = "#ffff60";
+                ctx.shadowBlur = 5;
+                ctx.fillRect(b.x, b.y, b.w, b.h);
+            }
+            // balas enemigas
+            for(let eb of enemyBullets) {
+                ctx.fillStyle = "#ff5e4d";
+                ctx.fillRect(eb.x, eb.y, eb.w, eb.h);
+            }
+            // explosiones
+            for(let i=0; i<explosions.length; i++) {
+                let exp = explosions[i];
+                let size = (8 - exp.life) * 1.5;
+                ctx.fillStyle = `rgba(255, 80, 40, ${exp.life/8})`;
+                ctx.beginPath();
+                ctx.arc(exp.x, exp.y, size+2, 0, Math.PI*2);
+                ctx.fill();
+                exp.life--;
+                if(exp.life <= 0) {
+                    explosions.splice(i,1);
+                    i--;
+                }
+            }
+
+            if(gameOver) {
+                ctx.font = "bold 28px monospace";
+                ctx.fillStyle = "#ff44cc";
+                ctx.shadowBlur = 0;
+                let msg = (lives <= 0) ? "💀 GAME OVER 💀" : "✨ VICTORIA ✨";
+                ctx.fillText(msg, W/2 - ctx.measureText(msg).width/2, H/2 - 30);
+                ctx.font = "16px monospace";
+                ctx.fillStyle = "#aaffdd";
+                ctx.fillText("Toca REINICIAR", W/2-80, H/2+40);
+            }
+        }
+
+        // ----- GESTIÓN DE CONTROLES TÁCTILES Y TECLADO -----
+        function initControls() {
+            // teclado
+            window.addEventListener('keydown', (e) => {
+                if(e.key === 'ArrowLeft') { leftPressed = true; e.preventDefault(); }
+                else if(e.key === 'ArrowRight') { rightPressed = true; e.preventDefault(); }
+                else if(e.key === ' ' || e.key === 'Space') { shootFromShip(); e.preventDefault(); }
+            });
+            window.addEventListener('keyup', (e) => {
+                if(e.key === 'ArrowLeft') leftPressed = false;
+                if(e.key === 'ArrowRight') rightPressed = false;
+                if(e.key === ' ' || e.key === 'Space') e.preventDefault();
+            });
+
+            // Botones táctiles (con eventos touch para evitar scroll)
+            const leftBtn = document.getElementById('leftBtn');
+            const rightBtn = document.getElementById('rightBtn');
+            const fireBtn = document.getElementById('fireBtn');
+
+            function activateLeft(e) { e.preventDefault(); touchLeftActive = true; }
+            function deactivateLeft(e) { e.preventDefault(); touchLeftActive = false; }
+            function activateRight(e) { e.preventDefault(); touchRightActive = true; }
+            function deactivateRight(e) { e.preventDefault(); touchRightActive = false; }
+            function fireAction(e) { e.preventDefault(); shootFromShip(); }
+
+            leftBtn.addEventListener('touchstart', activateLeft, {passive: false});
+            leftBtn.addEventListener('touchend', deactivateLeft);
+            leftBtn.addEventListener('touchcancel', deactivateLeft);
+            leftBtn.addEventListener('mousedown', activateLeft);
+            leftBtn.addEventListener('mouseup', deactivateLeft);
+            leftBtn.addEventListener('mouseleave', deactivateLeft);
+
+            rightBtn.addEventListener('touchstart', activateRight, {passive: false});
+            rightBtn.addEventListener('touchend', deactivateRight);
+            rightBtn.addEventListener('touchcancel', deactivateRight);
+            rightBtn.addEventListener('mousedown', activateRight);
+            rightBtn.addEventListener('mouseup', deactivateRight);
+            rightBtn.addEventListener('mouseleave', deactivateRight);
+
+            fireBtn.addEventListener('touchstart', fireAction, {passive: false});
+            fireBtn.addEventListener('mousedown', fireAction);
+
+            // También clic en canvas para disparar
+            canvas.addEventListener('click', (e) => { shootFromShip(); });
+            canvas.addEventListener('touchstart', (e) => { e.preventDefault(); shootFromShip(); }, {passive: false});
+        }
+
+        // ----- DETECCIÓN DISPOSITIVO TÁCTIL y mostrar botones -----
+        function isTouchDevice() {
+            return (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0));
+        }
+
+        function setTouchControlsVisibility(forceShow) {
+            const controlsDiv = document.getElementById('touchControls');
+            if(forceShow) {
+                controlsDiv.style.display = 'flex';
+            } else {
+                controlsDiv.style.display = isTouchDevice() ? 'flex' : 'none';
+            }
+        }
+
+        // Checkbox para forzar botones en escritorio
+        const forceCheckbox = document.getElementById('forceTouchBtn');
+        forceCheckbox.addEventListener('change', (e) => {
+            setTouchControlsVisibility(e.target.checked);
+        });
+
+        // Inicializar visibilidad
+        setTouchControlsVisibility(false);
+        
+        // Botón reinicio
+        document.getElementById('resetBtn').addEventListener('click', () => { resetGame(); });
+
+        // ----- Loop principal -----
+        function gameLoop() {
+            updateGame();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        resetGame();
+        initControls();
+        gameLoop();
+    })();
+</script>
+</body>
+</html>
